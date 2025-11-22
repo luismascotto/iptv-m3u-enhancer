@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -137,8 +138,14 @@ var (
 	// Title time patterns:
 	// 1) start:YYYY MM DD HH:mm(:SS)?
 	reStartInTitle = regexp.MustCompile(`(?i)start:\s*(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?`)
+	// stop:YYYY MM DD HH:mm(:SS)?
+	reStopInTitle = regexp.MustCompile(`(?i)stop:\s*(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?`)
 	// 2) (MM.DD H:mmTZ) where TZ is a US time band like ET, CT, MT, PT (also EST/EDT, etc.)
 	reParenTZ = regexp.MustCompile(`(?i)\((\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{2})\s*([A-Z]{1,4})\)`)
+	// 2b) (MM.DD h:mm(AM|PM) TZ)
+	reParenTZ12 = regexp.MustCompile(`(?i)\((\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*([A-Z]{1,4})\)`)
+	// 3) | MM/DD/YYYY h:mm (AM|PM) TZ
+	rePipeDate12 = regexp.MustCompile(`(?i)\|\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*([A-Z]{1,4})`)
 	// Date in filename/path: YYYY-MM-DD
 	reDateInPath = regexp.MustCompile(`(\d{4})-(\d{2})-(\d{2})`)
 )
@@ -255,6 +262,39 @@ func parseTimesFromTitle(title string, fallbackYear int) (*time.Time, *time.Time
 		loc := t.In(time.Local)
 		return &t, &loc
 	}
+	// Pipe format with explicit date and AM/PM: | MM/DD/YYYY h:mm AM TZ
+	if m := rePipeDate12.FindStringSubmatch(title); m != nil {
+		mon, _ := strconv.Atoi(m[1])
+		day, _ := strconv.Atoi(m[2])
+		year, _ := strconv.Atoi(m[3])
+		hh, _ := strconv.Atoi(m[4])
+		mm, _ := strconv.Atoi(m[5])
+		ampm := strings.ToUpper(m[6])
+		tz := strings.ToUpper(m[7])
+		hh = to24h(hh, ampm)
+		if loc := resolveUSTimeBand(tz); loc != nil {
+			tLocalBand := time.Date(year, time.Month(mon), day, hh, mm, 0, 0, loc)
+			tUTC := tLocalBand.UTC()
+			tClient := tUTC.In(time.Local)
+			return &tUTC, &tClient
+		}
+	}
+	// Parenthetical with AM/PM and US time band: (MM.DD h:mmPM TZ)
+	if m := reParenTZ12.FindStringSubmatch(title); m != nil {
+		mon, _ := strconv.Atoi(m[1])
+		day, _ := strconv.Atoi(m[2])
+		hh, _ := strconv.Atoi(m[3])
+		mm, _ := strconv.Atoi(m[4])
+		ampm := strings.ToUpper(m[5])
+		tz := strings.ToUpper(m[6])
+		hh = to24h(hh, ampm)
+		if loc := resolveUSTimeBand(tz); loc != nil {
+			tLocalBand := time.Date(fallbackYear, time.Month(mon), day, hh, mm, 0, 0, loc)
+			tUTC := tLocalBand.UTC()
+			tClient := tUTC.In(time.Local)
+			return &tUTC, &tClient
+		}
+	}
 	// Fallback: parenthetical with US time band like (MM.DD H:mmET)
 	if m := reParenTZ.FindStringSubmatch(title); m != nil {
 		mon, _ := strconv.Atoi(m[1])
@@ -270,6 +310,14 @@ func parseTimesFromTitle(title string, fallbackYear int) (*time.Time, *time.Time
 		}
 	}
 	return nil, nil
+}
+
+func to24h(hour12 int, ampm string) int {
+	h := hour12 % 12
+	if strings.EqualFold(ampm, "PM") {
+		h += 12
+	}
+	return h
 }
 
 func resolveUSTimeBand(tz string) *time.Location {
@@ -339,9 +387,16 @@ func writeFilteredM3U(outPath string, entries []PlaylistEntry) error {
 	}
 	for _, e := range entries {
 		line := e.Info.Raw
-		if line == "" {
+		// If we have a parsed local start time, rewrite the title segment with standardized local time
+		if e.Info.StartTimeLocal != nil && line != "" && strings.HasPrefix(line, "#EXTINF:") {
+			line = rewriteExtinfTitleWithLocalTime(line, *e.Info.StartTimeLocal)
+		} else if line == "" {
 			// Reconstruct minimal EXTINF if raw was not preserved
-			line = fmt.Sprintf("#EXTINF:%d,%s", e.Info.Duration, e.Info.Title)
+			title := e.Info.Title
+			if e.Info.StartTimeLocal != nil {
+				title = replaceStartTimeTokens(title, *e.Info.StartTimeLocal)
+			}
+			line = fmt.Sprintf("#EXTINF:%d,%s", e.Info.Duration, title)
 		}
 		if _, err := w.WriteString(line + "\n"); err != nil {
 			return err
@@ -351,6 +406,62 @@ func writeFilteredM3U(outPath string, entries []PlaylistEntry) error {
 		}
 	}
 	return nil
+}
+
+func rewriteExtinfTitleWithLocalTime(rawLine string, local time.Time) string {
+	const prefix = "#EXTINF:"
+	if !strings.HasPrefix(rawLine, prefix) {
+		return rawLine
+	}
+	payload := rawLine[len(prefix):]
+	// Find first comma not inside quotes to split meta and title, preserving original spacing
+	inQuotes := false
+	split := -1
+	for i := 0; i < len(payload); i++ {
+		ch := payload[i]
+		if ch == '"' {
+			inQuotes = !inQuotes
+			continue
+		}
+		if ch == ',' && !inQuotes {
+			split = i
+			break
+		}
+	}
+	if split == -1 {
+		return rawLine
+	}
+	meta := payload[:split] // keep as-is
+	title := payload[split+1:]
+	newTitle := replaceStartTimeTokens(title, local)
+	return prefix + meta + "," + newTitle
+}
+
+func replaceStartTimeTokens(title string, local time.Time) string {
+	// 1) Remove all recognizable time tokens from title
+	res := title
+	res = rePipeDate12.ReplaceAllString(res, "")
+	res = reParenTZ12.ReplaceAllString(res, "")
+	res = reParenTZ.ReplaceAllString(res, "")
+	res = reStartInTitle.ReplaceAllString(res, "")
+	res = reStopInTitle.ReplaceAllString(res, "")
+	// 2) Cleanup separators and spaces left behind
+	res = strings.TrimSpace(res)
+	// Drop dangling separators at end
+	for {
+		trimmed := strings.TrimRight(res, " \t")
+		if strings.HasSuffix(trimmed, "|") || strings.HasSuffix(trimmed, "-") ||
+			strings.HasSuffix(trimmed, ":") || strings.HasSuffix(trimmed, ";") ||
+			strings.HasSuffix(trimmed, ",") {
+			res = strings.TrimRight(strings.TrimRight(trimmed, "|-:;, "), " \t")
+			continue
+		}
+		break
+	}
+	// Condense multiple inner spaces
+	res = regexp.MustCompile(`\s{2,}`).ReplaceAllString(res, " ")
+	// 3) Append standardized local time suffix " - DD/MM HH:mm"
+	return strings.TrimSpace(res) + " - " + local.Format("02/01 15:04")
 }
 
 func main() {
@@ -389,6 +500,15 @@ func main() {
 		}
 	}
 
+	// Remove entries with start times earlier than 6 hours ago (keep entries without time)
+	filtered = filterRecentEntries(filtered, 6*time.Hour)
+
+	// Remove entries with undesired titles
+	filtered = filterExcludeTitles(filtered, []string{"no event", "offline", "no games", "no scheduled"})
+
+	// Sort: by parsed local start time (items with time first, earlier first), then by title
+	sortEntries(filtered)
+
 	// Derive default output path if needed
 	outPath := flagOut
 	if outPath == "" {
@@ -404,4 +524,68 @@ func main() {
 		fmt.Fprintln(os.Stderr, "write error:", err)
 		os.Exit(1)
 	}
+}
+
+func sortEntries(entries []PlaylistEntry) {
+	sort.Slice(entries, func(i, j int) bool {
+		a := entries[i]
+		b := entries[j]
+		at := a.Info.StartTimeLocal
+		bt := b.Info.StartTimeLocal
+		switch {
+		case at != nil && bt != nil:
+			if at.Equal(*bt) {
+				// Tie-breaker: title, case-insensitive
+				ai := strings.ToLower(a.Info.Title)
+				bi := strings.ToLower(b.Info.Title)
+				if ai == bi {
+					return a.Info.Title < b.Info.Title
+				}
+				return ai < bi
+			}
+			return at.Before(*bt)
+		case at != nil && bt == nil:
+			// Items with time come first
+			return true
+		case at == nil && bt != nil:
+			return false
+		default:
+			// Both without time: sort by title
+			ai := strings.ToLower(a.Info.Title)
+			bi := strings.ToLower(b.Info.Title)
+			if ai == bi {
+				return a.Info.Title < b.Info.Title
+			}
+			return ai < bi
+		}
+	})
+}
+
+func filterRecentEntries(entries []PlaylistEntry, maxAge time.Duration) []PlaylistEntry {
+	cutoff := time.Now().UTC().Add(-maxAge)
+	out := entries[:0]
+	for _, e := range entries {
+		if e.Info.StartTimeUTC == nil || !e.Info.StartTimeUTC.Before(cutoff) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func filterExcludeTitles(entries []PlaylistEntry, substrs []string) []PlaylistEntry {
+	out := entries[:0]
+	for _, e := range entries {
+		titleLower := strings.ToLower(e.Info.Title)
+		exclude := false
+		for _, sub := range substrs {
+			if strings.Contains(titleLower, sub) {
+				exclude = true
+				break
+			}
+		}
+		if !exclude {
+			out = append(out, e)
+		}
+	}
+	return out
 }
