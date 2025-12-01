@@ -301,9 +301,7 @@ func getTimeFromLocation(tz string, year int, mon int, day int, hh int, mm int) 
 	}
 	tLocation := time.Date(year, time.Month(mon), day, hh, mm, 0, 0, loc)
 	// Round up
-	if tLocation.Minute() >= 50 {
-		tLocation = tLocation.Add(time.Duration(60-tLocation.Minute()) * time.Minute)
-	}
+	tLocation = tLocation.Add(time.Duration(RoundUpMinutesTo60or30(tLocation.Minute())) * time.Minute)
 	tClient := tLocation.In(time.Local)
 	return &tClient
 }
@@ -590,4 +588,14 @@ func filterExcludeTitles(entries []PlaylistEntry, substrs []string) []PlaylistEn
 		}
 	}
 	return out
+}
+
+func RoundUpMinutesTo60or30(minutes int) int {
+	if minutes >= 50 {
+		return (60 - minutes)
+	}
+	if minutes < 30 && minutes >= 20 {
+		return (30 - minutes)
+	}
+	return 0
 }
