@@ -20,7 +20,6 @@ type ExtInf struct {
 	Attributes map[string]string
 	Raw        string
 	// Parsed times (when present in title). UTC source converted to local as well.
-	StartTimeUTC   *time.Time
 	StartTimeLocal *time.Time
 }
 
@@ -257,6 +256,7 @@ func parseTimesFromTitle(title string, fallbackYear int) *time.Time {
 		// if len(m) > 6 && m[6] != "" {
 		// 	ss, _ = strconv.Atoi(m[6])
 		// }
+		//t := time.Date(year, time.Month(mon), day, hh, mm, ss, 0, time.UTC)
 		return getTimeFromLocation("", year, mon, day, hh, mm)
 	}
 	// Pipe format with explicit date and AM/PM: | MM/DD/YYYY h:mm AM TZ
@@ -294,17 +294,17 @@ func parseTimesFromTitle(title string, fallbackYear int) *time.Time {
 	return nil
 }
 
-func getTimeFromLocation(tz string, fallbackYear int, mon int, day int, hh int, mm int) *time.Time {
+func getTimeFromLocation(tz string, year int, mon int, day int, hh int, mm int) *time.Time {
 	var loc *time.Location
 	if loc = resolveUSTimeBand(tz); loc == nil {
 		loc = time.UTC
 	}
-	tLocation := time.Date(fallbackYear, time.Month(mon), day, hh, mm, 0, 0, loc)
+	tLocation := time.Date(year, time.Month(mon), day, hh, mm, 0, 0, loc)
 	// Round up
 	if tLocation.Minute() >= 50 {
 		tLocation = tLocation.Add(time.Duration(60-tLocation.Minute()) * time.Minute)
 	}
-	tClient := tLocation.UTC().In(time.Local)
+	tClient := tLocation.In(time.Local)
 	return &tClient
 }
 
@@ -567,7 +567,7 @@ func filterRecentEntries(entries []PlaylistEntry, maxAge time.Duration) []Playli
 	cutoff := time.Now().UTC().Add(-maxAge)
 	out := entries[:0]
 	for _, e := range entries {
-		if e.Info.StartTimeUTC == nil || !e.Info.StartTimeUTC.Before(cutoff) {
+		if e.Info.StartTimeLocal == nil || !e.Info.StartTimeLocal.Before(cutoff) {
 			out = append(out, e)
 		}
 	}
