@@ -460,8 +460,8 @@ func replaceStartTimeTokens(title string, local time.Time) string {
 	}
 	// Condense multiple inner spaces
 	res = regexp.MustCompile(`\s{2,}`).ReplaceAllString(res, " ")
-	// 3) Append standardized local time suffix " - DD/MM HH:mm"
-	return strings.TrimSpace(res) + " - " + local.Format("02/01 15:04")
+	// 3) Append standardized local time suffix " > DD/MM HH:mm"
+	return strings.TrimSpace(res) + " > " + local.Format("02/01 15:04")
 }
 
 func main() {
