@@ -207,8 +207,7 @@ func parseEXTINF(line string, fallbackYear int) (ExtInf, error) {
 		Title:      title,
 		Attributes: attributes,
 	}
-	if utc, local := parseTimesFromTitle(title, fallbackYear); utc != nil && local != nil {
-		ext.StartTimeUTC = utc
+	if local := parseTimesFromTitle(title, fallbackYear); local != nil {
 		ext.StartTimeLocal = local
 	}
 	return ext, nil
@@ -246,7 +245,7 @@ func extractFallbackYear(path string) int {
 	return time.Now().Year()
 }
 
-func parseTimesFromTitle(title string, fallbackYear int) (*time.Time, *time.Time) {
+func parseTimesFromTitle(title string, fallbackYear int) *time.Time {
 	// Prefer explicit 'start:' form if present
 	if m := reStartInTitle.FindStringSubmatch(title); m != nil {
 		year, _ := strconv.Atoi(m[1])
@@ -254,13 +253,11 @@ func parseTimesFromTitle(title string, fallbackYear int) (*time.Time, *time.Time
 		day, _ := strconv.Atoi(m[3])
 		hh, _ := strconv.Atoi(m[4])
 		mm, _ := strconv.Atoi(m[5])
-		ss := 0
-		if len(m) > 6 && m[6] != "" {
-			ss, _ = strconv.Atoi(m[6])
-		}
-		t := time.Date(year, time.Month(mon), day, hh, mm, ss, 0, time.UTC)
-		loc := t.In(time.Local)
-		return &t, &loc
+		// ss := 0
+		// if len(m) > 6 && m[6] != "" {
+		// 	ss, _ = strconv.Atoi(m[6])
+		// }
+		return getTimeFromLocation("", year, mon, day, hh, mm)
 	}
 	// Pipe format with explicit date and AM/PM: | MM/DD/YYYY h:mm AM TZ
 	if m := rePipeDate12.FindStringSubmatch(title); m != nil {
@@ -272,12 +269,7 @@ func parseTimesFromTitle(title string, fallbackYear int) (*time.Time, *time.Time
 		ampm := strings.ToUpper(m[6])
 		tz := strings.ToUpper(m[7])
 		hh = to24h(hh, ampm)
-		if loc := resolveUSTimeBand(tz); loc != nil {
-			tLocalBand := time.Date(year, time.Month(mon), day, hh, mm, 0, 0, loc)
-			tUTC := tLocalBand.UTC()
-			tClient := tUTC.In(time.Local)
-			return &tUTC, &tClient
-		}
+		return getTimeFromLocation(tz, year, mon, day, hh, mm)
 	}
 	// Parenthetical with AM/PM and US time band: (MM.DD h:mmPM TZ)
 	if m := reParenTZ12.FindStringSubmatch(title); m != nil {
@@ -288,12 +280,7 @@ func parseTimesFromTitle(title string, fallbackYear int) (*time.Time, *time.Time
 		ampm := strings.ToUpper(m[5])
 		tz := strings.ToUpper(m[6])
 		hh = to24h(hh, ampm)
-		if loc := resolveUSTimeBand(tz); loc != nil {
-			tLocalBand := time.Date(fallbackYear, time.Month(mon), day, hh, mm, 0, 0, loc)
-			tUTC := tLocalBand.UTC()
-			tClient := tUTC.In(time.Local)
-			return &tUTC, &tClient
-		}
+		return getTimeFromLocation(tz, fallbackYear, mon, day, hh, mm)
 	}
 	// Fallback: parenthetical with US time band like (MM.DD H:mmET)
 	if m := reParenTZ.FindStringSubmatch(title); m != nil {
@@ -302,14 +289,23 @@ func parseTimesFromTitle(title string, fallbackYear int) (*time.Time, *time.Time
 		hh, _ := strconv.Atoi(m[3])
 		mm, _ := strconv.Atoi(m[4])
 		tz := strings.ToUpper(m[5])
-		if loc := resolveUSTimeBand(tz); loc != nil {
-			tLocalBand := time.Date(fallbackYear, time.Month(mon), day, hh, mm, 0, 0, loc)
-			tUTC := tLocalBand.UTC()
-			tClient := tUTC.In(time.Local)
-			return &tUTC, &tClient
-		}
+		return getTimeFromLocation(tz, fallbackYear, mon, day, hh, mm)
 	}
-	return nil, nil
+	return nil
+}
+
+func getTimeFromLocation(tz string, fallbackYear int, mon int, day int, hh int, mm int) *time.Time {
+	var loc *time.Location
+	if loc = resolveUSTimeBand(tz); loc == nil {
+		loc = time.UTC
+	}
+	tLocation := time.Date(fallbackYear, time.Month(mon), day, hh, mm, 0, 0, loc)
+	// Round up
+	if tLocation.Minute() >= 50 {
+		tLocation = tLocation.Add(time.Duration(60-tLocation.Minute()) * time.Minute)
+	}
+	tClient := tLocation.UTC().In(time.Local)
+	return &tClient
 }
 
 func to24h(hour12 int, ampm string) int {
@@ -539,7 +535,13 @@ func sortEntries(entries []PlaylistEntry) {
 				ai := strings.ToLower(a.Info.Title)
 				bi := strings.ToLower(b.Info.Title)
 				if ai == bi {
-					return a.Info.Title < b.Info.Title
+					if strings.Contains(ai, "@") {
+						return true
+					}
+					if strings.Contains(bi, "@") {
+						return false
+					}
+					return false
 				}
 				return ai < bi
 			}
