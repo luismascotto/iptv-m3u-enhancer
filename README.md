@@ -1,6 +1,6 @@
 # IPTV M3U Enhancer (CLI)
 
-A tiny Go CLI to parse an M3U playlist and write a filtered playlist containing only entries from a specified `group-title`.
+A tiny Go CLI to parse an M3U playlist and write a filtered playlist containing only entries from a specified `group-title`, trying to sort by explicit event start time, or parsing from title.
 
 ## Build
 
@@ -11,12 +11,14 @@ go build -o iptv-m3u-enhancer .
 ## Usage
 
 ```bash
-iptv-m3u-enhancer [--group-title "<name>"] [--out <path>] [--strict] <input.m3u>
+iptv-m3u-enhancer [--group-title "<name>"] [--out <path>] [--strict] [--nba] <input.m3u>
 ```
 
 - `--group-title "<name>"`: filter entries by `group-title` (case-insensitive). If omitted, all entries are included.
 - `--out <path>`: output M3U path. If omitted, defaults to `<input>.<group>.m3u` (or `<input>.filtered.m3u` when no filter is given) in the same directory.
 - `--strict`: fail on malformed lines and structural issues.
+- `--nba`: parse teams from title to improve sorting by match.
+
 
 ## Notes
 
