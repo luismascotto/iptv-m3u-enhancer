@@ -19,6 +19,9 @@ var (
 	reParenTZ12 = regexp.MustCompile(`(?i)\((\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*([A-Z]{1,4})\)`)
 	// 3) | MM/DD/YYYY h:mm (AM|PM) TZ
 	rePipeDate12 = regexp.MustCompile(`(?i)\|\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*([A-Z]{1,4})`)
+	// 4) DayOfWeek DD(st|nd|rd|th) Month HH:mm TZ
+	// Example: Tue 9th Dec 6:00PM ET
+	reDowDomMonth = regexp.MustCompile(`(?i)(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{1,2})(th|nd|rd|st)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}):(\d{2})(AM|PM)\s*([A-Z]{1,4})`)
 	// Date in filename/path: YYYY-MM-DD
 	reDateInPath = regexp.MustCompile(`(\d{4})-(\d{2})-(\d{2})`)
 )
@@ -63,11 +66,21 @@ func parseTimesFromTitle(title string, fallbackYear int) *time.Time {
 	}
 	// Fallback: parenthetical with US time band like (MM.DD H:mmET)
 	if m := reParenTZ.FindStringSubmatch(title); m != nil {
+		day, _ := strconv.Atoi(m[3])
 		mon, _ := strconv.Atoi(m[1])
-		day, _ := strconv.Atoi(m[2])
 		hh, _ := strconv.Atoi(m[3])
 		mm, _ := strconv.Atoi(m[4])
 		tz := strings.ToUpper(m[5])
+		return getTimeFromLocation(tz, fallbackYear, mon, day, hh, mm)
+	}
+	// Fallback2: day of week, day of month, month, hour:minute, time band
+	if m := reDowDomMonth.FindStringSubmatch(title); m != nil {
+		//dow := strings.ToUpper(m[1])
+		day, _ := strconv.Atoi(m[2])
+		mon, _ := strconv.Atoi(m[3])
+		hh, _ := strconv.Atoi(m[4])
+		mm, _ := strconv.Atoi(m[5])
+		tz := strings.ToUpper(m[6])
 		return getTimeFromLocation(tz, fallbackYear, mon, day, hh, mm)
 	}
 	return nil
