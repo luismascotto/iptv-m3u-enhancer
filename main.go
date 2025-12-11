@@ -98,7 +98,7 @@ func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
 		}
 
 		if strings.HasPrefix(line, "#EXTINF:") {
-			info, err := parseEXTINF(line, fallbackYear)
+			info, err := parseEXTINF(line)
 			if err != nil {
 				if strict {
 					return Playlist{}, fmt.Errorf("line %d: %w", lineNum, err)
@@ -123,6 +123,10 @@ func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
 			if groupTitle != "" && !strings.EqualFold(currentEXTINF.GroupTitle(), groupTitle) {
 				continue
 			}
+			if local := parseTimesFromTitle(currentEXTINF.Title, fallbackYear); local != nil {
+				currentEXTINF.StartTimeLocal = local
+			}
+
 			entries = append(entries, PlaylistEntry{
 				Info: *currentEXTINF,
 				URI:  line,
@@ -154,7 +158,7 @@ var (
 	attrKVPlain  = regexp.MustCompile(`(?i)\b([a-z0-9\-]+)=([^\s,]+)`)
 )
 
-func parseEXTINF(line string, fallbackYear int) (ExtInf, error) {
+func parseEXTINF(line string) (ExtInf, error) {
 	// Expect: #EXTINF:<duration> [attributes],<title>
 	const prefix = "#EXTINF:"
 	if !strings.HasPrefix(line, prefix) {
@@ -210,9 +214,6 @@ func parseEXTINF(line string, fallbackYear int) (ExtInf, error) {
 		Duration:   dur,
 		Title:      title,
 		Attributes: attributes,
-	}
-	if local := parseTimesFromTitle(title, fallbackYear); local != nil {
-		ext.StartTimeLocal = local
 	}
 
 	return ext, nil
