@@ -358,14 +358,14 @@ func main() {
 	// 	}
 	// }
 
-	// Remove entries with start times earlier than 6 hours ago (keep entries without time)
-	filtered := filterRecentEntries(playlist.Entries, 6*time.Hour)
-
 	// Remove entries with undesired titles
-	filtered = filterExcludeTitles(filtered, []string{"no event", "offline", "no games", "no scheduled"})
+	filtered := filterExcludeTitles(playlist.Entries, []string{"no event", "offline", "no games", "no scheduled"})
 
-	// Process entries with NBA match id
-	filtered = processNBAEntries(filtered)
+	// Process entries with NBA match id and remove entries with start times earlier than 12 hours ago or without time
+	if flagNBA {
+		filtered = filterRecentEntries(filtered, 12*time.Hour)
+		filtered = processNBAEntries(filtered)
+	}
 
 	// Sort: by parsed local start time (items with time first, earlier first), then by title
 	sortEntries(filtered)
