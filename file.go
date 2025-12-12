@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,7 +24,7 @@ func sanitizeForFilename(s string) string {
 	return b.String()
 }
 
-func writeFilteredM3U(outPath string, entries []PlaylistEntry) error {
+func writeFilteredM3U(outPath string, entries []PlaylistEntry, ignoreRaw bool) error {
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		return err
 	}
@@ -43,15 +42,12 @@ func writeFilteredM3U(outPath string, entries []PlaylistEntry) error {
 	for _, e := range entries {
 		line := e.Info.Raw
 		// If we have a parsed local start time, rewrite the title segment with standardized local time
-		if e.Info.StartTimeLocal != nil && line != "" && strings.HasPrefix(line, "#EXTINF:") {
-			line = rewriteExtinfTitleWithLocalTime(line, *e.Info.StartTimeLocal)
-		} else if line == "" {
-			// Reconstruct minimal EXTINF if raw was not preserved
-			title := e.Info.Title
-			if e.Info.StartTimeLocal != nil {
-				title = replaceStartTimeTokens(title, *e.Info.StartTimeLocal)
-			}
-			line = fmt.Sprintf("#EXTINF:%d,%s", e.Info.Duration, title)
+		if !ignoreRaw && e.Info.StartTimeLocal != nil && line != "" && strings.HasPrefix(line, "#EXTINF:") {
+			line = rewriteRawExtinfTitleWithLocalTime(line, *e.Info.StartTimeLocal)
+		}
+		//If we are ignoring the raw EXTINF or the raw EXTINF is empty, write the new EXTINF
+		if ignoreRaw || line == "" {
+			line = writeNewExtinf(e)
 		}
 		if _, err := w.WriteString(line + "\n"); err != nil {
 			return err

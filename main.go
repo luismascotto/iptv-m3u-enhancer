@@ -251,7 +251,7 @@ func extractFallbackYear(path string) int {
 	return time.Now().Year()
 }
 
-func rewriteExtinfTitleWithLocalTime(rawLine string, local time.Time) string {
+func rewriteRawExtinfTitleWithLocalTime(rawLine string, local time.Time) string {
 	const prefix = "#EXTINF:"
 	if !strings.HasPrefix(rawLine, prefix) {
 		return rawLine
@@ -382,8 +382,28 @@ func main() {
 		outPath = filepath.Join(dir, fmt.Sprintf("%s.%s%s", name, suffix, ext))
 	}
 
-	if err := writeFilteredM3U(outPath, filtered); err != nil {
+	if err := writeFilteredM3U(outPath, filtered, true); err != nil {
 		fmt.Fprintln(os.Stderr, "write error:", err)
 		os.Exit(1)
 	}
+}
+
+func writeNewExtinf(e PlaylistEntry) string {
+	strbExtinf := strings.Builder{}
+	strbExtinf.WriteString("#EXTINF:")
+	strbExtinf.WriteString(strconv.Itoa(e.Info.Duration))
+	for key, value := range e.Info.Attributes {
+		strbExtinf.WriteString(" ")
+		strbExtinf.WriteString(key)
+		strbExtinf.WriteString("=\"")
+		strbExtinf.WriteString(value)
+		strbExtinf.WriteString("\"")
+	}
+	strbExtinf.WriteString(",")
+	if e.Info.StartTimeLocal != nil {
+		strbExtinf.WriteString(replaceStartTimeTokens(e.Info.Title, *e.Info.StartTimeLocal))
+	} else {
+		strbExtinf.WriteString(e.Info.Title)
+	}
+	return strbExtinf.String()
 }
