@@ -288,6 +288,7 @@ func replaceStartTimeTokens(title string, local time.Time) string {
 	res = reParenTZ.ReplaceAllString(res, "")
 	res = reStartInTitle.ReplaceAllString(res, "")
 	res = reStopInTitle.ReplaceAllString(res, "")
+	res = reDowDomMonth.ReplaceAllString(res, "")
 	// 2) Cleanup separators and spaces left behind
 	res = strings.TrimSpace(res)
 	// Drop dangling separators at end
