@@ -66,24 +66,57 @@ func parseTimesFromTitle(title string, fallbackYear int) *time.Time {
 	}
 	// Fallback: parenthetical with US time band like (MM.DD H:mmET)
 	if m := reParenTZ.FindStringSubmatch(title); m != nil {
-		day, _ := strconv.Atoi(m[3])
+		day, _ := strconv.Atoi(m[2])
 		mon, _ := strconv.Atoi(m[1])
 		hh, _ := strconv.Atoi(m[3])
 		mm, _ := strconv.Atoi(m[4])
 		tz := strings.ToUpper(m[5])
 		return getTimeFromLocation(tz, fallbackYear, mon, day, hh, mm)
 	}
-	// Fallback2: day of week, day of month, month, hour:minute, time band
+	// // Fallback2: day of week, day of month, month, hour:minute, time band
 	if m := reDowDomMonth.FindStringSubmatch(title); m != nil {
 		//dow := strings.ToUpper(m[1])
 		day, _ := strconv.Atoi(m[2])
-		mon, _ := strconv.Atoi(m[3])
-		hh, _ := strconv.Atoi(m[4])
-		mm, _ := strconv.Atoi(m[5])
-		tz := strings.ToUpper(m[6])
+		mon := getMonthNumber(m[4])
+		hh, _ := strconv.Atoi(m[5])
+		mm, _ := strconv.Atoi(m[6])
+		ampm := strings.ToUpper(m[7])
+		tz := strings.ToUpper(m[8])
+		hh = to24h(hh, ampm)
 		return getTimeFromLocation(tz, fallbackYear, mon, day, hh, mm)
 	}
 	return nil
+}
+
+func getMonthNumber(month string) int {
+
+	switch month {
+	case "Jan":
+		return 1
+	case "Feb":
+		return 2
+	case "Mar":
+		return 3
+	case "Apr":
+		return 4
+	case "May":
+		return 5
+	case "Jun":
+		return 6
+	case "Jul":
+		return 7
+	case "Aug":
+		return 8
+	case "Sep":
+		return 9
+	case "Oct":
+		return 10
+	case "Nov":
+		return 11
+	case "Dec":
+		return 12
+	}
+	return 0
 }
 
 func getTimeFromLocation(tz string, year int, mon int, day int, hh int, mm int) *time.Time {
