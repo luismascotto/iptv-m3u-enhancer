@@ -327,17 +327,21 @@ func main() {
 		flagGroupTitle string
 		flagOut        string
 		flagStrict     bool
+		flagStartTime  bool
+		flagRecent     bool
 		flagNBA        bool
 	)
-	flag.StringVar(&flagGroupTitle, "group-title", "", "Filter entries by group-title (case-insensitive). If empty, include all.")
+	flag.StringVar(&flagGroupTitle, "group-title", "", "Filter entries by group-title (case-insensitive).")
 	flag.StringVar(&flagOut, "out", "", "Output .m3u path. Defaults to '<input>.<group>.m3u' in the same directory.")
 	flag.BoolVar(&flagStrict, "strict", false, "Enable strict parsing and fail on malformed lines.")
+	flag.BoolVar(&flagStartTime, "start-time", false, "Filter entries with parsed start time.")
+	flag.BoolVar(&flagRecent, "recent", false, "Filter entries with start time greater than Now minus 6 Hours")
 	flag.BoolVar(&flagNBA, "nba", false, "Parse teams from title to improve sorting by match.")
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Fprintln(os.Stderr, "usage: iptv-m3u-enhancer [--group-title \"<name>\"] [--out <path>] [--strict] [--nba] <input.m3u>")
+		fmt.Fprintln(os.Stderr, "usage: iptv-m3u-enhancer [--group-title \"<name>\"] [--out <path>] [--strict] [--start-time] [--recent] [--nba] <input.m3u>")
 		os.Exit(2)
 	}
 	inPath := args[0]
@@ -364,8 +368,10 @@ func main() {
 	filtered := filterExcludeTitles(playlist.Entries, []string{"no event", "offline", "no games", "no scheduled"})
 
 	// Process entries with NBA match id and remove entries with start times earlier than 12 hours ago or without time
+	if flagStartTime {
+		filtered = filterRecentEntries(filtered, 6*time.Hour, flagStartTime, flagRecent)
+	}
 	if flagNBA {
-		filtered = filterRecentEntries(filtered, 12*time.Hour)
 		filtered = processNBAEntries(filtered)
 	}
 
