@@ -351,25 +351,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// // Filter entries by group-title (if provided)
-	// var filtered []PlaylistEntry
-	// if flagGroupTitle == "" {
-	// 	filtered = playlist.Entries
-	// } else {
-	// 	want := strings.ToLower(flagGroupTitle)
-	// 	for _, e := range playlist.Entries {
-	// 		if strings.ToLower(e.Info.GroupTitle()) == want {
-	// 			filtered = append(filtered, e)
-	// 		}
-	// 	}
-	// }
-
 	// Remove entries with undesired titles
 	filtered := filterExcludeTitles(playlist.Entries, []string{"no event", "offline", "no games", "no scheduled"})
 
 	// Process entries with NBA match id and remove entries with start times earlier than 12 hours ago or without time
-	if flagStartTime {
-		filtered = filterRecentEntries(filtered, 6*time.Hour, flagStartTime, flagRecent)
+	if flagStartTime || flagRecent {
+		filtered = filterRecentEntries(filtered, flagStartTime, flagRecent, 6*time.Hour, 24*time.Hour)
 	}
 	if flagNBA {
 		filtered = processNBAEntries(filtered)

@@ -51,14 +51,16 @@ func sortEntries(entries []PlaylistEntry) {
 	})
 }
 
-func filterRecentEntries(entries []PlaylistEntry, maxAge time.Duration, recent, withParsedLocalTime bool) []PlaylistEntry {
-	cutoff := time.Now().Add(-maxAge)
+func filterRecentEntries(entries []PlaylistEntry, withLocalTime, applyRange bool, expiredAfter, includeUntil time.Duration) []PlaylistEntry {
+	past := time.Now().Add(-expiredAfter)
+	future := time.Now().Add(includeUntil)
 	out := entries[:0]
 	for _, e := range entries {
-		if(e.Info.StartTimeLocal == nil && withParsedLocalTime){
+		if e.Info.StartTimeLocal == nil && withLocalTime {
 			continue
 		}
-		if recent && e.Info.StartTimeLocal != nil && e.Info.StartTimeLocal.Before(cutoff) {
+		if applyRange && e.Info.StartTimeLocal != nil &&
+			(e.Info.StartTimeLocal.Before(past) || e.Info.StartTimeLocal.After(future)) {
 			continue
 		}
 		out = append(out, e)
