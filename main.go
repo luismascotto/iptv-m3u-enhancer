@@ -360,6 +360,7 @@ func main() {
 	}
 	if flagNBA {
 		filtered = processNBAEntries(filtered)
+		filtered = cleanseAwayHomeStream(filtered)
 	}
 
 	// Sort: by parsed local start time (items with time first, earlier first), then by title
@@ -400,4 +401,20 @@ func writeNewExtinf(e PlaylistEntry) string {
 		strbExtinf.WriteString(e.Info.Title)
 	}
 	return strbExtinf.String()
+}
+
+func cleanseAwayHomeStream(filtered []PlaylistEntry) []PlaylistEntry {
+	for f := range filtered {
+		if strings.Contains(filtered[f].Info.Title, "Away") {
+			filtered[f].Info.Title = strings.ReplaceAll(filtered[f].Info.Title, "| Away Stream", "(A)")
+			filtered[f].Info.Title = strings.ReplaceAll(filtered[f].Info.Title, "(Away)", "(A)")
+			fmt.Println(filtered[f].Info.Title)
+		}
+		if strings.Contains(filtered[f].Info.Title, "Home") {
+			filtered[f].Info.Title = strings.ReplaceAll(filtered[f].Info.Title, "| Home Stream", "(H)")
+			filtered[f].Info.Title = strings.ReplaceAll(filtered[f].Info.Title, "(Home)", "(H)")
+			fmt.Println(filtered[f].Info.Title)
+		}
+	}
+	return filtered
 }
