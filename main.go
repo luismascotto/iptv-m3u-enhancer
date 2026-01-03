@@ -37,11 +37,11 @@ func (e ExtInf) NBAMatchId() string {
 	return e.Attributes["nba-match-id"]
 }
 
-func (e ExtInf) SetNBAMatchId(nbaFranchiseSlice *[]NBAFranchiseSlice) {
+func (e ExtInf) SetNBAMatchId(sortedNbaFranchiseSlice []NBAFranchiseSlice) {
 	if e.Attributes == nil {
 		e.Attributes = make(map[string]string)
 	}
-	e.Attributes["nba-match-id"] = generateMatchIdFromTitle(e.Title, nbaFranchiseSlice)
+	e.Attributes["nba-match-id"] = generateMatchIdFromTitle(e.Title, sortedNbaFranchiseSlice)
 
 }
 
@@ -308,18 +308,17 @@ func replaceStartTimeTokens(title string, local time.Time) string {
 	return strings.TrimSpace(res) + " > " + local.Format("02/01 15:04")
 }
 
-func processNBAEntries(entries []PlaylistEntry) []PlaylistEntry {
-	nbaFranchiseSlice := make([]NBAFranchiseSlice, 0, len(NBAFranchises))
+func (p *Playlist) processNBAEntries() {
+	sortedNbaFranchiseSlice := make([]NBAFranchiseSlice, 0, len(NBAFranchises))
 	for fname, franchise := range NBAFranchises {
-		nbaFranchiseSlice = append(nbaFranchiseSlice, NBAFranchiseSlice{Name: fname, Franchise: franchise})
+		sortedNbaFranchiseSlice = append(sortedNbaFranchiseSlice, NBAFranchiseSlice{Name: fname, Franchise: franchise})
 	}
-	sort.Slice(nbaFranchiseSlice, func(i, j int) bool {
-		return nbaFranchiseSlice[i].Name < nbaFranchiseSlice[j].Name
+	sort.Slice(sortedNbaFranchiseSlice, func(i, j int) bool {
+		return sortedNbaFranchiseSlice[i].Name < sortedNbaFranchiseSlice[j].Name
 	})
-	for _, e := range entries {
-		e.Info.SetNBAMatchId(&nbaFranchiseSlice)
+	for _, e := range p.Entries {
+		e.Info.SetNBAMatchId(sortedNbaFranchiseSlice)
 	}
-	return entries
 }
 
 func main() {
@@ -335,8 +334,8 @@ func main() {
 	flag.StringVar(&flagOut, "out", "", "Output .m3u path. Defaults to '<input>.<group>.m3u' in the same directory.")
 	flag.BoolVar(&flagStrict, "strict", false, "Enable strict parsing and fail on malformed lines.")
 	flag.BoolVar(&flagStartTime, "start-time", false, "Filter entries with parsed start time.")
-	flag.BoolVar(&flagRecent, "recent", false, "Filter entries with start time greater than Now minus 6 Hours")
-	flag.BoolVar(&flagNBA, "nba", false, "Parse teams from title to improve sorting by match.")
+	flag.BoolVar(&flagRecent, "recent", false, "Filter entries with start time prior to 6 hours ago or after 24 hours from now")
+	flag.BoolVar(&flagNBA, "nba", false, "Parse teams from title to improve sorting by match")
 	flag.Parse()
 
 	args := flag.Args()
@@ -352,19 +351,23 @@ func main() {
 	}
 
 	// Remove entries with undesired titles
-	filtered := filterExcludeTitles(playlist.Entries, []string{"no event", "offline", "no games", "no scheduled"})
+	playlist.filterExcludeTitles([]string{"no event", "offline", "no games", "no scheduled"})
 
-	// Process entries with NBA match id and remove entries with start times earlier than 12 hours ago or without time
+	// Remove entries with undesired titles
+	//filtered := filterExcludeTitles(playlist.Entries, []string{"no event", "offline", "no games", "no scheduled"})
+
+	// Process entries based on start time information
 	if flagStartTime || flagRecent {
-		filtered = filterRecentEntries(filtered, flagStartTime, flagRecent, 6*time.Hour, 24*time.Hour)
+		playlist.filterScheduledEntries(flagStartTime, flagRecent, 6*time.Hour, 24*time.Hour)
 	}
+	// Process entries with NBA match id
 	if flagNBA {
-		filtered = processNBAEntries(filtered)
-		filtered = cleanseAwayHomeStream(filtered)
+		playlist.processNBAEntries()
+		playlist.cleanseAwayHomeStream()
 	}
 
-	// Sort: by parsed local start time (items with time first, earlier first), then by title
-	sortEntries(filtered)
+	// Sort: by parsed local start time (when present) then by title
+	playlist.sortEntries()
 
 	// Derive default output path if needed
 	outPath := flagOut
@@ -377,7 +380,7 @@ func main() {
 		outPath = filepath.Join(dir, fmt.Sprintf("%s.%s%s", name, suffix, ext))
 	}
 
-	if err := writeFilteredM3U(outPath, filtered, true); err != nil {
+	if err := writeFilteredM3U(outPath, playlist.Entries, true); err != nil {
 		fmt.Fprintln(os.Stderr, "write error:", err)
 		os.Exit(1)
 	}
@@ -401,20 +404,4 @@ func writeNewExtinf(e PlaylistEntry) string {
 		strbExtinf.WriteString(e.Info.Title)
 	}
 	return strbExtinf.String()
-}
-
-func cleanseAwayHomeStream(filtered []PlaylistEntry) []PlaylistEntry {
-	for f := range filtered {
-		if strings.Contains(filtered[f].Info.Title, "Away") {
-			filtered[f].Info.Title = strings.ReplaceAll(filtered[f].Info.Title, "| Away Stream", "(A)")
-			filtered[f].Info.Title = strings.ReplaceAll(filtered[f].Info.Title, "(Away)", "(A)")
-			fmt.Println(filtered[f].Info.Title)
-		}
-		if strings.Contains(filtered[f].Info.Title, "Home") {
-			filtered[f].Info.Title = strings.ReplaceAll(filtered[f].Info.Title, "| Home Stream", "(H)")
-			filtered[f].Info.Title = strings.ReplaceAll(filtered[f].Info.Title, "(Home)", "(H)")
-			fmt.Println(filtered[f].Info.Title)
-		}
-	}
-	return filtered
 }

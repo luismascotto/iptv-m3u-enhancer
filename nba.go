@@ -86,20 +86,20 @@ type NBAFranchiseSlice struct {
 	Franchise NBAFranchise
 }
 
-func generateMatchIdFromTitle(title string, nbaFranchiseSlice *[]NBAFranchiseSlice) string {
-	team1, team2 := parseTeamsFromTitle(title, nbaFranchiseSlice)
+func generateMatchIdFromTitle(title string, sortedNbaFranchiseSlice []NBAFranchiseSlice) string {
+	team1, team2 := parseTeamsFromTitle(title, sortedNbaFranchiseSlice)
 	if team1 == nil || team2 == nil {
 		return ""
 	}
 	return fmt.Sprintf("%s-%s", team1.Acronym, team2.Acronym)
 }
 
-func parseTeamsFromTitle(title string, nbaFranchiseSlice *[]NBAFranchiseSlice) (*NBAFranchise, *NBAFranchise) {
+func parseTeamsFromTitle(title string, sortedNbaFranchiseSlice []NBAFranchiseSlice) (*NBAFranchise, *NBAFranchise) {
 	var team1 *NBAFranchise
 	var team2 *NBAFranchise
 
-	// To ensure a match to be the same regardless of order in title, search from NBAFranchises
-	for _, franchise := range *nbaFranchiseSlice {
+	// Ensure a match is the same regardless of order in title, search from NBAFranchises
+	for _, franchise := range sortedNbaFranchiseSlice {
 
 		if team1 == nil && titleIsNBAFranchise(title, franchise) {
 			team1 = &franchise.Franchise

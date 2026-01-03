@@ -1,15 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
 )
 
-func sortEntries(entries []PlaylistEntry) {
-	sort.Slice(entries, func(i, j int) bool {
-		a := entries[i]
-		b := entries[j]
+func (p *Playlist) sortEntries() {
+	sort.Slice(p.Entries, func(i, j int) bool {
+		a := p.Entries[i]
+		b := p.Entries[j]
 		at := a.Info.StartTimeLocal
 		bt := b.Info.StartTimeLocal
 		switch {
@@ -51,11 +52,11 @@ func sortEntries(entries []PlaylistEntry) {
 	})
 }
 
-func filterRecentEntries(entries []PlaylistEntry, withLocalTime, applyRange bool, expiredAfter, includeUntil time.Duration) []PlaylistEntry {
+func (p *Playlist) filterScheduledEntries(withLocalTime, applyRange bool, expiredAfter, includeUntil time.Duration) {
 	past := time.Now().Add(-expiredAfter)
 	future := time.Now().Add(includeUntil)
-	out := entries[:0]
-	for _, e := range entries {
+	out := p.Entries[:0]
+	for _, e := range p.Entries {
 		if e.Info.StartTimeLocal == nil && withLocalTime {
 			continue
 		}
@@ -65,12 +66,12 @@ func filterRecentEntries(entries []PlaylistEntry, withLocalTime, applyRange bool
 		}
 		out = append(out, e)
 	}
-	return out
+	p.Entries = out
 }
 
-func filterExcludeTitles(entries []PlaylistEntry, substrs []string) []PlaylistEntry {
-	out := entries[:0]
-	for _, e := range entries {
+func (p *Playlist) filterExcludeTitles(substrs []string) {
+	out := p.Entries[:0]
+	for _, e := range p.Entries {
 		titleLower := strings.ToLower(e.Info.Title)
 		exclude := false
 		for _, sub := range substrs {
@@ -83,5 +84,20 @@ func filterExcludeTitles(entries []PlaylistEntry, substrs []string) []PlaylistEn
 			out = append(out, e)
 		}
 	}
-	return out
+	p.Entries = out
+}
+
+func (p *Playlist) cleanseAwayHomeStream() {
+	for f := range p.Entries {
+		if strings.Contains(p.Entries[f].Info.Title, "Away") {
+			p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, "| Away Stream", "(A)")
+			p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, "(Away)", "(A)")
+			fmt.Println(p.Entries[f].Info.Title)
+		}
+		if strings.Contains(p.Entries[f].Info.Title, "Home") {
+			p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, "| Home Stream", "(H)")
+			p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, "(Home)", "(H)")
+			fmt.Println(p.Entries[f].Info.Title)
+		}
+	}
 }
