@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -69,7 +68,7 @@ func (p *Playlist) filterScheduledEntries(withLocalTime, applyRange bool, expire
 	p.Entries = out
 }
 
-func (p *Playlist) filterExcludeTitles(substrs []string) {
+func (p *Playlist) filterRemoveWithTitle(substrs []string) {
 	out := p.Entries[:0]
 	for _, e := range p.Entries {
 		titleLower := strings.ToLower(e.Info.Title)
@@ -87,17 +86,30 @@ func (p *Playlist) filterExcludeTitles(substrs []string) {
 	p.Entries = out
 }
 
-func (p *Playlist) cleanseAwayHomeStream() {
+type Cleanser struct {
+	Remove        string
+	WithSubstring string
+	Olds          []string
+	New           string
+}
+
+func (p *Playlist) cleanseTitles(cleansers []Cleanser) {
 	for f := range p.Entries {
-		if strings.Contains(p.Entries[f].Info.Title, "Away") {
-			p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, "| Away Stream", "(A)")
-			p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, "(Away)", "(A)")
-			fmt.Println(p.Entries[f].Info.Title)
-		}
-		if strings.Contains(p.Entries[f].Info.Title, "Home") {
-			p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, "| Home Stream", "(H)")
-			p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, "(Home)", "(H)")
-			fmt.Println(p.Entries[f].Info.Title)
+		for _, cleanser := range cleansers {
+			if cleanser.Remove != "" {
+				p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, cleanser.Remove, "")
+				continue
+			}
+			if len(cleanser.Olds) == 0 {
+				p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, cleanser.WithSubstring, cleanser.New)
+				continue
+			}
+			if strings.Contains(p.Entries[f].Info.Title, cleanser.WithSubstring) {
+				for _, old := range cleanser.Olds {
+					p.Entries[f].Info.Title = strings.ReplaceAll(p.Entries[f].Info.Title, old, cleanser.New)
+				}
+				//fmt.Println(p.Entries[f].Info.Title)
+			}
 		}
 	}
 }

@@ -24,37 +24,44 @@ func sanitizeForFilename(s string) string {
 	return b.String()
 }
 
-func writeFilteredM3U(outPath string, entries []PlaylistEntry, ignoreRaw bool) error {
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+func writeFilteredM3U(outPath string, entries []PlaylistEntry) error {
+	var err error
+	var f *os.File
+	if err = os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 		return err
 	}
-	f, err := os.Create(outPath)
-	if err != nil {
+	if f, err = os.Create(outPath); err != nil {
 		return err
 	}
 	defer f.Close()
 	w := bufio.NewWriter(f)
 	defer w.Flush()
 
-	if _, err := w.WriteString("#EXTM3U\n"); err != nil {
+	if _, err = w.WriteString("#EXTM3U\n"); err != nil {
 		return err
 	}
 	for _, e := range entries {
-		line := e.Info.Raw
-		// If we have a parsed local start time, rewrite the title segment with standardized local time
-		if !ignoreRaw && e.Info.StartTimeLocal != nil && line != "" && strings.HasPrefix(line, "#EXTINF:") {
-			line = rewriteRawExtinfTitleWithLocalTime(line, *e.Info.StartTimeLocal)
+		line := writeNewEntry(e)
+		if line == "" {
+			continue
+			// line = e.Info.Raw
+			// if line == "" {
+			// 	continue
+			// }
 		}
-		//If we are ignoring the raw EXTINF or the raw EXTINF is empty, write the new EXTINF
-		if ignoreRaw || line == "" {
-			line = writeNewExtinf(e)
-		}
-		if _, err := w.WriteString(line + "\n"); err != nil {
+
+		if _, err = w.WriteString(line); err != nil {
 			return err
 		}
-		if _, err := w.WriteString(e.URI + "\n"); err != nil {
-			return err
-		}
+		// if _, err = w.WriteString("\n"); err != nil {
+		// 	return err
+		// }
+		// if _, err = w.WriteString(e.URI); err != nil {
+		// 	return err
+		// }
+		// if _, err = w.WriteString("\n"); err != nil {
+		// 	return err
+		// }
 	}
 	return nil
 }

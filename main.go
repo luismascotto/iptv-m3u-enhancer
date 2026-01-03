@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -37,12 +36,14 @@ func (e ExtInf) NBAMatchId() string {
 	return e.Attributes["nba-match-id"]
 }
 
-func (e ExtInf) SetNBAMatchId(sortedNbaFranchiseSlice []NBAFranchiseSlice) {
-	if e.Attributes == nil {
-		e.Attributes = make(map[string]string)
+func (e ExtInf) SetNBAMatchId() {
+	nbaMatchId := generateMatchIdFromTitle(e.Title)
+	if nbaMatchId != "" {
+		if e.Attributes == nil {
+			e.Attributes = make(map[string]string)
+		}
+		e.Attributes["nba-match-id"] = nbaMatchId
 	}
-	e.Attributes["nba-match-id"] = generateMatchIdFromTitle(e.Title, sortedNbaFranchiseSlice)
-
 }
 
 type PlaylistEntry struct {
@@ -125,6 +126,8 @@ func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
 			}
 			if local := parseTimesFromTitle(currentEXTINF.Title, fallbackYear); local != nil {
 				currentEXTINF.StartTimeLocal = local
+
+				currentEXTINF.Title = replaceStartTimeTokens(currentEXTINF.Title, *local)
 			}
 
 			entries = append(entries, PlaylistEntry{
@@ -251,35 +254,6 @@ func extractFallbackYear(path string) int {
 	return time.Now().Year()
 }
 
-func rewriteRawExtinfTitleWithLocalTime(rawLine string, local time.Time) string {
-	const prefix = "#EXTINF:"
-	if !strings.HasPrefix(rawLine, prefix) {
-		return rawLine
-	}
-	payload := rawLine[len(prefix):]
-	// Find first comma not inside quotes to split meta and title, preserving original spacing
-	inQuotes := false
-	split := -1
-	for i := 0; i < len(payload); i++ {
-		ch := payload[i]
-		if ch == '"' {
-			inQuotes = !inQuotes
-			continue
-		}
-		if ch == ',' && !inQuotes {
-			split = i
-			break
-		}
-	}
-	if split == -1 {
-		return rawLine
-	}
-	meta := payload[:split] // keep as-is
-	title := payload[split+1:]
-	newTitle := replaceStartTimeTokens(title, local)
-	return prefix + meta + "," + newTitle
-}
-
 func replaceStartTimeTokens(title string, local time.Time) string {
 	// 1) Remove all recognizable time tokens from title
 	res := title
@@ -309,15 +283,9 @@ func replaceStartTimeTokens(title string, local time.Time) string {
 }
 
 func (p *Playlist) processNBAEntries() {
-	sortedNbaFranchiseSlice := make([]NBAFranchiseSlice, 0, len(NBAFranchises))
-	for fname, franchise := range NBAFranchises {
-		sortedNbaFranchiseSlice = append(sortedNbaFranchiseSlice, NBAFranchiseSlice{Name: fname, Franchise: franchise})
-	}
-	sort.Slice(sortedNbaFranchiseSlice, func(i, j int) bool {
-		return sortedNbaFranchiseSlice[i].Name < sortedNbaFranchiseSlice[j].Name
-	})
+
 	for _, e := range p.Entries {
-		e.Info.SetNBAMatchId(sortedNbaFranchiseSlice)
+		e.Info.SetNBAMatchId()
 	}
 }
 
@@ -351,10 +319,7 @@ func main() {
 	}
 
 	// Remove entries with undesired titles
-	playlist.filterExcludeTitles([]string{"no event", "offline", "no games", "no scheduled"})
-
-	// Remove entries with undesired titles
-	//filtered := filterExcludeTitles(playlist.Entries, []string{"no event", "offline", "no games", "no scheduled"})
+	playlist.filterRemoveWithTitle([]string{"no event", "offline", "no games", "no scheduled"})
 
 	// Process entries based on start time information
 	if flagStartTime || flagRecent {
@@ -363,7 +328,15 @@ func main() {
 	// Process entries with NBA match id
 	if flagNBA {
 		playlist.processNBAEntries()
-		playlist.cleanseAwayHomeStream()
+
+		playlist.cleanseTitles([]Cleanser{
+			{Remove: "ⓧ"},
+			{WithSubstring: "USA | NBA", New: "USA"},
+			{WithSubstring: " : ", New: ": "},
+			{WithSubstring: "Away", Olds: []string{"| Away Stream", "(Away)"}, New: "(A)"},
+			{WithSubstring: "Home", Olds: []string{"| Home Stream", "(Home)"}, New: "(H)"},
+			//
+		})
 	}
 
 	// Sort: by parsed local start time (when present) then by title
@@ -380,13 +353,13 @@ func main() {
 		outPath = filepath.Join(dir, fmt.Sprintf("%s.%s%s", name, suffix, ext))
 	}
 
-	if err := writeFilteredM3U(outPath, playlist.Entries, true); err != nil {
+	if err := writeFilteredM3U(outPath, playlist.Entries); err != nil {
 		fmt.Fprintln(os.Stderr, "write error:", err)
 		os.Exit(1)
 	}
 }
 
-func writeNewExtinf(e PlaylistEntry) string {
+func writeNewEntry(e PlaylistEntry) string {
 	strbExtinf := strings.Builder{}
 	strbExtinf.WriteString("#EXTINF:")
 	strbExtinf.WriteString(strconv.Itoa(e.Info.Duration))
@@ -398,10 +371,9 @@ func writeNewExtinf(e PlaylistEntry) string {
 		strbExtinf.WriteString("\"")
 	}
 	strbExtinf.WriteString(",")
-	if e.Info.StartTimeLocal != nil {
-		strbExtinf.WriteString(replaceStartTimeTokens(e.Info.Title, *e.Info.StartTimeLocal))
-	} else {
-		strbExtinf.WriteString(e.Info.Title)
-	}
+	strbExtinf.WriteString(e.Info.Title)
+	strbExtinf.WriteString("\n")
+	strbExtinf.WriteString(e.URI)
+	strbExtinf.WriteString("\n")
 	return strbExtinf.String()
 }
