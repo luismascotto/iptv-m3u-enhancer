@@ -1,10 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/timematic/anytime"
 )
 
 var (
@@ -12,8 +15,8 @@ var (
 	// 1) start:YYYY MM DD HH:mm(:SS)?
 	reStartInTitle = regexp.MustCompile(`(?i)start:\s*(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?`)
 	// stop:YYYY MM DD HH:mm(:SS)?
-	reStopInTitle = regexp.MustCompile(`(?i)stop:\s*(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?`)
-	// 2) (MM.DD H:mmTZ) where TZ is a US time band like ET, CT, MT, PT (also EST/EDT, etc.)
+	// reStopInTitle = regexp.MustCompile(`(?i)stop:\s*(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?`)
+	// 2) (MM.DD H:mmTZ) where TZ is a US time band like ET, CT, MT, PT (also EST/EDT, etc.) of UK (UTC)
 	reParenTZ = regexp.MustCompile(`(?i)\((\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{2})\s*([A-Z]{1,4})\)`)
 	// 2b) (MM.DD h:mm(AM|PM) TZ)
 	reParenTZ12 = regexp.MustCompile(`(?i)\((\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*([A-Z]{1,4})\)`)
@@ -26,7 +29,7 @@ var (
 	reDateInPath = regexp.MustCompile(`(\d{4})-(\d{2})-(\d{2})`)
 )
 
-func parseTimesFromTitle(title string, fallbackYear int) *time.Time {
+func ParseTimesFromTitle(title string, fallbackYear int) *time.Time {
 	// Prefer explicit 'start:' form if present
 	if m := reStartInTitle.FindStringSubmatch(title); m != nil {
 		year, _ := strconv.Atoi(m[1])
@@ -168,6 +171,8 @@ func resolveUSTimeBand(tz string) *time.Location {
 		if l, err := time.LoadLocation("Pacific/Honolulu"); err == nil {
 			return l
 		}
+	case "UTC", "UK":
+		return time.UTC
 	}
 	return nil
 }
@@ -180,4 +185,75 @@ func roundUpMinutesToHourOrHalf(minutes int) int {
 		return (30 - minutes)
 	}
 	return 0
+}
+
+func parseTimesFromTitleV2(title string) *time.Time {
+	ptime, err := anytime.Parse(title)
+	if err == nil {
+		return &ptime
+	}
+	ET, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	formats := []string{
+		"01.02 3:04PM ET",
+		"01.02 3:04PM Z",
+		"Z Mon 02 Jan 3:04pm",
+		"Mon 02 Jan 3:04pm Z",
+		"Mon 02 Jan 3:04pm",
+		"02 Jan 3:04pm Z",
+		"02 Jan 3:04pm",
+	}
+	for _, format := range formats {
+		t, err := time.ParseInLocation(format, title, ET)
+		if err == nil {
+			return &t
+		}
+	}
+	return nil
+}
+
+func ParseTimesFromTitleV3(title string) *time.Time {
+	time, err := anytime.Parse(title)
+	if err == nil {
+		return &time
+	}
+
+	left := regexp.QuoteMeta("(")
+	fmt.Println(left)
+	right := regexp.QuoteMeta(")")
+	reInBetween, _ := regexp.Compile(fmt.Sprintf(`%s[^%s]*%s`, left, right, right))
+
+	matches := reInBetween.FindAllStringSubmatch(title, -1)
+	if len(matches) > 0 {
+		for i, match := range matches {
+			fmt.Println("match", i, match[i])
+			time, err := anytime.Parse(match[1])
+			if err == nil {
+				return &time
+			}
+		}
+	}
+	reParenText1 := regexp.MustCompile(`(?i)\[(.*)\]`)
+	matches1 := reParenText1.FindStringSubmatch(title)
+	if len(matches1) > 0 {
+		for i, match := range matches1 {
+			fmt.Println("regex match1", i, match[i])
+		}
+	}
+	// 2 -- Split the title by other tokens | // \\ etc and parse each part
+	parts := strings.FieldsFunc(title, isTitleSeparator)
+	for _, part := range parts {
+		time := parseTimesFromTitleV2(part)
+		if time != nil {
+			return time
+		}
+	}
+	return nil
+}
+
+func isTitleSeparator(r rune) bool {
+	return r == '|' || r == '/' || r == '\\'
 }

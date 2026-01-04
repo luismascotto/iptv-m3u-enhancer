@@ -17,9 +17,10 @@ type ExtInf struct {
 	Duration   int
 	Title      string
 	Attributes map[string]string
-	Raw        string
+	//Raw        string
 	// Parsed times (when present in title). UTC source converted to local as well.
 	StartTimeLocal *time.Time
+	TitleCopy      string
 }
 
 func (e ExtInf) GroupTitle() string {
@@ -76,8 +77,6 @@ func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
 		entries          []PlaylistEntry
 	)
 
-	fallbackYear := extractFallbackYear(path)
-
 	for scanner.Scan() {
 		lineNum++
 		raw := scanner.Text()
@@ -109,7 +108,8 @@ func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
 				continue
 			}
 			// Preserve the raw line for re-emitting later
-			info.Raw = line
+			//info.Raw = line
+			info.TitleCopy = info.Title
 			currentEXTINF = &info
 			continue
 		}
@@ -124,11 +124,17 @@ func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
 			if groupTitle != "" && !strings.EqualFold(currentEXTINF.GroupTitle(), groupTitle) {
 				continue
 			}
-			if local := parseTimesFromTitle(currentEXTINF.Title, fallbackYear); local != nil {
-				currentEXTINF.StartTimeLocal = local
+			// start := parseTimesFromTitleV2(currentEXTINF.Title)
+			// if start != nil {
+			// 	currentEXTINF.StartTimeLocal = start
+			// } else {
 
-				currentEXTINF.Title = replaceStartTimeTokens(currentEXTINF.Title, *local)
-			}
+			// 	if start = parseTimesFromTitle(currentEXTINF.Title, fallbackYear); start != nil {
+			// 		currentEXTINF.StartTimeLocal = start
+
+			// 		currentEXTINF.Title = replaceStartTimeTokens(currentEXTINF.Title, *start)
+			// 	}
+			// }
 
 			entries = append(entries, PlaylistEntry{
 				Info: *currentEXTINF,
@@ -254,40 +260,33 @@ func extractFallbackYear(path string) int {
 	return time.Now().Year()
 }
 
-func replaceStartTimeTokens(title string, local time.Time) string {
-	// 1) Remove all recognizable time tokens from title
-	res := title
-	res = rePipeDate12.ReplaceAllString(res, "")
-	res = reParenTZ12.ReplaceAllString(res, "")
-	res = reParenTZ.ReplaceAllString(res, "")
-	res = reStartInTitle.ReplaceAllString(res, "")
-	res = reStopInTitle.ReplaceAllString(res, "")
-	res = reDowDomMonth.ReplaceAllString(res, "")
-	// 2) Cleanup separators and spaces left behind
-	res = strings.TrimSpace(res)
-	// Drop dangling separators at end
-	for {
-		trimmed := strings.TrimRight(res, " \t")
-		if strings.HasSuffix(trimmed, "|") || strings.HasSuffix(trimmed, "-") ||
-			strings.HasSuffix(trimmed, ":") || strings.HasSuffix(trimmed, ";") ||
-			strings.HasSuffix(trimmed, ",") {
-			res = strings.TrimRight(strings.TrimRight(trimmed, "|-:;, "), " \t")
-			continue
-		}
-		break
-	}
-	// Condense multiple inner spaces
-	res = regexp.MustCompile(`\s{2,}`).ReplaceAllString(res, " ")
-	// 3) Append standardized local time suffix " > DD/MM HH:mm"
-	return strings.TrimSpace(res) + " > " + local.Format("02/01 15:04")
-}
-
-func (p *Playlist) processNBAEntries() {
-
-	for _, e := range p.Entries {
-		e.Info.SetNBAMatchId()
-	}
-}
+// func replaceStartTimeTokens(title string, local time.Time) string {
+// 	// 1) Remove all recognizable time tokens from title
+// 	res := title
+// 	res = rePipeDate12.ReplaceAllString(res, "")
+// 	res = reParenTZ12.ReplaceAllString(res, "")
+// 	res = reParenTZ.ReplaceAllString(res, "")
+// 	res = reStartInTitle.ReplaceAllString(res, "")
+// 	res = reStopInTitle.ReplaceAllString(res, "")
+// 	res = reDowDomMonth.ReplaceAllString(res, "")
+// 	// 2) Cleanup separators and spaces left behind
+// 	res = strings.TrimSpace(res)
+// 	// Drop dangling separators at end
+// 	for {
+// 		trimmed := strings.TrimRight(res, " \t")
+// 		if strings.HasSuffix(trimmed, "|") || strings.HasSuffix(trimmed, "-") ||
+// 			strings.HasSuffix(trimmed, ":") || strings.HasSuffix(trimmed, ";") ||
+// 			strings.HasSuffix(trimmed, ",") {
+// 			res = strings.TrimRight(strings.TrimRight(trimmed, "|-:;, "), " \t")
+// 			continue
+// 		}
+// 		break
+// 	}
+// 	// Condense multiple inner spaces
+// 	res = regexp.MustCompile(`\s{2,}`).ReplaceAllString(res, " ")
+// 	// 3) Append standardized local time suffix " > DD/MM HH:mm"
+// 	return strings.TrimSpace(res) + " > " + local.Format("02/01 15:04")
+// }
 
 func main() {
 	var (
@@ -318,6 +317,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	fallbackYear := extractFallbackYear(inPath)
+	// Process entries with NBA new generic logic of splitting title into teams and start time
+	if flagNBA {
+		playlist.processNBAEntries(fallbackYear)
+	}
+
 	// Remove entries with undesired titles
 	playlist.filterRemoveWithTitle([]string{"no event", "offline", "no games", "no scheduled"})
 
@@ -325,9 +330,8 @@ func main() {
 	if flagStartTime || flagRecent {
 		playlist.filterScheduledEntries(flagStartTime, flagRecent, 6*time.Hour, 24*time.Hour)
 	}
-	// Process entries with NBA match id
+
 	if flagNBA {
-		playlist.processNBAEntries()
 
 		playlist.cleanseTitles([]Cleanser{
 			{Remove: "ⓧ"},

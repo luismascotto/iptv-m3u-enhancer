@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -111,5 +112,27 @@ func (p *Playlist) cleanseTitles(cleansers []Cleanser) {
 				//fmt.Println(p.Entries[f].Info.Title)
 			}
 		}
+	}
+}
+
+func (p *Playlist) processNBAEntries(fallbackYear int) {
+
+	for n := range p.Entries {
+		titleGroups := parseTitle(p.Entries[n].Info.TitleCopy)
+		if titleGroups == nil {
+			continue
+		}
+		match := parseNBAMatch(titleGroups, fallbackYear)
+		if match == nil {
+			continue
+		}
+		p.Entries[n].Info.StartTimeLocal = match.StartTime
+		p.Entries[n].Info.Title = fmt.Sprintf("%s | %s (%s) vs %s (%s) > %s",
+			match.Channel,
+			match.Team1.TeamName,
+			match.Team1.Acronym,
+			match.Team2.TeamName,
+			match.Team2.Acronym,
+			match.StartTime.Format("01/02 15:04"))
 	}
 }

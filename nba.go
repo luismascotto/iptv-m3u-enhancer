@@ -98,9 +98,9 @@ func parseTeamsFromTitle(title string) (*NBAFranchise, *NBAFranchise) {
 	// Ensure a match is the same regardless of order in title, search from NBAFranchises
 	for _, franchise := range NBAFranchises {
 
-		if team1 == nil && titleIsNBAFranchise(title, franchise) {
+		if team1 == nil && titleHasNBAFranchiseInfo(title, franchise) {
 			team1 = &franchise
-		} else if team2 == nil && titleIsNBAFranchise(title, franchise) {
+		} else if team2 == nil && titleHasNBAFranchiseInfo(title, franchise) {
 			team2 = &franchise
 		}
 
@@ -111,7 +111,7 @@ func parseTeamsFromTitle(title string) (*NBAFranchise, *NBAFranchise) {
 	return team1, team2
 }
 
-func titleIsNBAFranchise(title string, franchise NBAFranchise) bool {
+func titleHasNBAFranchiseInfo(title string, franchise NBAFranchise) bool {
 	acronym := "(" + franchise.Acronym + ")"
 	acronymAlt := "(" + franchise.AcronymAlt + ")"
 	if strings.Contains(title, string(franchise.Name)) ||
