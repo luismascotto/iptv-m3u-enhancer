@@ -133,6 +133,6 @@ func (p *Playlist) processNBAEntries(fallbackYear int) {
 			match.Team1.Acronym,
 			match.Team2.TeamName,
 			match.Team2.Acronym,
-			match.StartTime.Format("01/02 15:04"))
+			match.StartTime.Local().Format("01/02 15:04"))
 	}
 }

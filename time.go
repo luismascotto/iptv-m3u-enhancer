@@ -178,10 +178,10 @@ func resolveUSTimeBand(tz string) *time.Location {
 }
 
 func roundUpMinutesToHourOrHalf(minutes int) int {
-	if minutes >= 50 {
+	if minutes >= 45 {
 		return (60 - minutes)
 	}
-	if minutes < 30 && minutes >= 20 {
+	if minutes < 30 && minutes >= 15 {
 		return (30 - minutes)
 	}
 	return 0
