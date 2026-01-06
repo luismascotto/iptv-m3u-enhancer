@@ -171,10 +171,10 @@ func resolveUSTimeBand(tz string) *time.Location {
 		if l, err := time.LoadLocation("Pacific/Honolulu"); err == nil {
 			return l
 		}
-	case "UTC", "UK":
-		return time.UTC
+		// case "UTC", "UK":
+		// 	return time.UTC
 	}
-	return nil
+	return time.UTC
 }
 
 func roundUpMinutesToHourOrHalf(minutes int) int {
@@ -192,22 +192,27 @@ func parseTimesFromTitleV2(title string) *time.Time {
 	if err == nil {
 		return &ptime
 	}
-	ET, err := time.LoadLocation("America/New_York")
-	if err != nil {
-		fmt.Println(err)
-		return nil
+	loc := resolveTimeLocation(title)
+	if loc != time.UTC {
+		ltime, err := anytime.ParseInLocation(title, loc)
+		if err == nil {
+			return &ltime
+		}
 	}
-	formats := []string{
+
+	customFormats := []string{
 		"01.02 3:04PM ET",
-		"01.02 3:04PM Z",
-		"Z Mon 02 Jan 3:04pm",
-		"Mon 02 Jan 3:04pm Z",
-		"Mon 02 Jan 3:04pm",
-		"02 Jan 3:04pm Z",
+		"01.02 3:04PM",
+		"ET Mon 2 Jan 3:04pm",
+		"Mon 2 Jan 3:04pm",
+		"Mon 2 Jan 3:04PM ET",
+		"Mon 2 Jan 3:04PM",
+		"02 Jan 3:04pm ET",
 		"02 Jan 3:04pm",
+		"2006 01 02 03:04:05",
 	}
-	for _, format := range formats {
-		t, err := time.ParseInLocation(format, title, ET)
+	for _, format := range customFormats {
+		t, err := time.ParseInLocation(format, title, loc)
 		if err == nil {
 			return &t
 		}
@@ -244,7 +249,7 @@ func ParseTimesFromTitleV3(title string) *time.Time {
 		}
 	}
 	// 2 -- Split the title by other tokens | // \\ etc and parse each part
-	parts := strings.FieldsFunc(title, isTitleSeparator)
+	parts := strings.FieldsFunc(title, isTitleGroupSeparator)
 	for _, part := range parts {
 		time := parseTimesFromTitleV2(part)
 		if time != nil {
@@ -254,6 +259,48 @@ func ParseTimesFromTitleV3(title string) *time.Time {
 	return nil
 }
 
-func isTitleSeparator(r rune) bool {
-	return r == '|' || r == '/' || r == '\\'
+func isTitleGroupSeparator(r rune) bool {
+	return r == '|' || r == '/' || r == '\\' || r == '>' || r == '<'
+}
+
+func resolveTimeLocation(timeString string) *time.Location {
+	// Map common US time band labels and abbreviations to IANA locations
+	// Using representative cities so DST is applied correctly when applicable.
+	fallbackLocation := time.UTC
+	if strings.Contains(timeString, "EST") || strings.Contains(timeString, "EDT") || strings.Contains(timeString, "ET") {
+		if l, err := time.LoadLocation("America/New_York"); err == nil {
+			return l
+		}
+		return fallbackLocation
+	}
+	if strings.Contains(timeString, "MST") || strings.Contains(timeString, "MDT") || strings.Contains(timeString, "MT") {
+		if l, err := time.LoadLocation("America/Denver"); err == nil {
+			return l
+		}
+		return fallbackLocation
+	}
+	if strings.Contains(timeString, "CST") || strings.Contains(timeString, "CDT") || strings.Contains(timeString, "CT") {
+		if l, err := time.LoadLocation("America/Chicago"); err == nil {
+			return l
+		}
+		return fallbackLocation
+	}
+	if strings.Contains(timeString, "PST") || strings.Contains(timeString, "PDT") || strings.Contains(timeString, "PT") {
+		if l, err := time.LoadLocation("America/Los_Angeles"); err == nil {
+			return l
+		}
+		return fallbackLocation
+	}
+	if strings.Contains(timeString, "AKT") || strings.Contains(timeString, "AKST") || strings.Contains(timeString, "AKDT") {
+		if l, err := time.LoadLocation("America/Anchorage"); err == nil {
+			return l
+		}
+		return fallbackLocation
+	}
+	if strings.Contains(timeString, "HST") || strings.Contains(timeString, "HDT") || strings.Contains(timeString, "HT") {
+		if l, err := time.LoadLocation("Pacific/Honolulu"); err == nil {
+			return l
+		}
+	}
+	return fallbackLocation
 }

@@ -328,7 +328,7 @@ func main() {
 
 	// Process entries based on start time information
 	if flagStartTime || flagRecent {
-		playlist.filterScheduledEntries(flagStartTime, flagRecent, 6*time.Hour, 24*time.Hour)
+		playlist.filterScheduledEntries(flagStartTime, flagRecent, 12*time.Hour, 48*time.Hour)
 	}
 
 	if flagNBA {
@@ -336,7 +336,6 @@ func main() {
 		playlist.cleanseTitles([]Cleanser{
 			{Remove: "ⓧ"},
 			{WithSubstring: "USA | NBA", New: "USA"},
-			{WithSubstring: " : ", New: ": "},
 			{WithSubstring: "Away", Olds: []string{"| Away Stream", "(Away)"}, New: "(A)"},
 			{WithSubstring: "Home", Olds: []string{"| Home Stream", "(Home)"}, New: "(H)"},
 			//

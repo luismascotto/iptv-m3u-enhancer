@@ -52,8 +52,8 @@ var (
 		},
 		{
 			Regex:  reTitle4,
-			Format: "<channel name>: <team1> vs/x/@ <team2> // <start time> // <start time>",
-			Groups: []string{"channel", "team1", "team2", "start time", "start time 2"},
+			Format: "<channel name>: <team1> vs/x/@ <team2> // <uk start time> // <start time>",
+			Groups: []string{"channel", "team1", "team2", "uk start time", "start time"},
 		},
 	}
 )
@@ -99,7 +99,7 @@ func parseTitle(title string) *NBATitleGroups {
 					break
 				}
 				if i > 0 {
-					mapGroups[regex.Groups[i-1]] = group
+					mapGroups[regex.Groups[i-1]] = strings.TrimSpace(group)
 				}
 			}
 			if mapGroups[nbaTitleGroupKeys.Team1] == "" ||
@@ -126,6 +126,10 @@ func parseNBAMatch(titleGroups *NBATitleGroups, fallbackYear int) *NBAMatch {
 	if team1 == nil || team2 == nil {
 		return nil
 	}
+	titleGroups.StartTime = strings.ReplaceAll(titleGroups.StartTime, "st ", " ")
+	titleGroups.StartTime = strings.ReplaceAll(titleGroups.StartTime, "nd ", " ")
+	titleGroups.StartTime = strings.ReplaceAll(titleGroups.StartTime, "rd ", " ")
+	titleGroups.StartTime = strings.ReplaceAll(titleGroups.StartTime, "th ", " ")
 	startTime := parseTimesFromTitleV2(titleGroups.StartTime)
 	if startTime == nil {
 		return nil
