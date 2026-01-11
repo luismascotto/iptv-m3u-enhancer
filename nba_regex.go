@@ -126,6 +126,8 @@ func parseNBAMatch(titleGroups *NBATitleGroups, fallbackYear int) *NBAMatch {
 	if team1 == nil || team2 == nil {
 		return nil
 	}
+
+	// Go doesn't parse times(days) with ordinal suffixes like "st", "nd", "rd", "th"
 	titleGroups.StartTime = strings.ReplaceAll(titleGroups.StartTime, "st ", " ")
 	titleGroups.StartTime = strings.ReplaceAll(titleGroups.StartTime, "nd ", " ")
 	titleGroups.StartTime = strings.ReplaceAll(titleGroups.StartTime, "rd ", " ")
@@ -136,8 +138,9 @@ func parseNBAMatch(titleGroups *NBATitleGroups, fallbackYear int) *NBAMatch {
 	}
 
 	if startTime.Year() == 0 {
+		t := startTime.AddDate(fallbackYear, 0, 0)
 		// new time with fallback year
-		t := time.Date(fallbackYear, startTime.Month(), startTime.Day(), startTime.Hour(), startTime.Minute(), startTime.Second(), startTime.Nanosecond(), startTime.Location())
+		//t := time.Date(fallbackYear, startTime.Month(), startTime.Day(), startTime.Hour(), startTime.Minute(), 0, 0, startTime.Location())
 		startTime = &t
 	}
 
