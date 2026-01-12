@@ -317,27 +317,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Remove entries with undesired titles
+	playlist.filterRemoveWithTitle([]string{"no event", "offline", "no games", "no scheduled"})
+
 	fallbackYear := extractFallbackYear(inPath)
 	// Process entries with NBA new generic logic of splitting title into teams and start time
 	if flagNBA {
 		playlist.processNBAEntries(fallbackYear)
 	}
 
-	// Remove entries with undesired titles
-	playlist.filterRemoveWithTitle([]string{"no event", "offline", "no games", "no scheduled"})
-
 	// Process entries based on start time information
 	if flagStartTime || flagRecent {
-		playlist.filterScheduledEntries(flagStartTime, flagRecent, 12*time.Hour, 48*time.Hour)
+		hoursAgo := 12
+		hoursFuture := 48
+
+		if flagNBA {
+			hoursAgo = 4
+			hoursFuture = 24
+		}
+		playlist.filterScheduledEntries(flagStartTime, flagRecent, time.Duration(hoursAgo)*time.Hour, time.Duration(hoursFuture)*time.Hour)
 	}
 
 	if flagNBA {
-
 		playlist.cleanseTitles([]Cleanser{
 			{Remove: "ⓧ"},
 			{WithSubstring: "USA | NBA", New: "USA"},
-			{WithSubstring: "Away", Olds: []string{"| Away Stream", "(Away)"}, New: "(A)"},
-			{WithSubstring: "Home", Olds: []string{"| Home Stream", "(Home)"}, New: "(H)"},
+			//{WithSubstring: "Away", Olds: []string{"| Away Stream", "(Away)"}, New: "(A)"},
+			//{WithSubstring: "Home", Olds: []string{"| Home Stream", "(Home)"}, New: "(H)"},
 			//
 		})
 	}

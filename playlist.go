@@ -159,17 +159,14 @@ func (p *Playlist) processNBAEntries(fallbackYear int) {
 		matchId := p.Entries[n].Info.NBAMatchId()
 		if matchId != "" {
 			if tLocal, ok := matchIdStartTimeMap[matchId]; ok {
-				diffDays := int(time.Since(tLocal).Hours() / 24)
+				diffDays := getDateOnlyDiffDays(tLocal)
 				suffix := ""
 				if diffDays != 0 {
 					// Add + or - to indicate past or future
 					suffix = fmt.Sprintf(" (%+d)", diffDays)
 				}
 				p.Entries[n].Info.StartTimeLocal = &tLocal
-				p.Entries[n].Info.Title = fmt.Sprintf("%s%s%s",
-					p.Entries[n].Info.Title,
-					tLocal.Format("15:04"),
-					suffix)
+				p.Entries[n].Info.Title = fmt.Sprintf("%s%s%s", p.Entries[n].Info.Title, tLocal.Format("15:04"), suffix)
 			}
 		}
 	}

@@ -304,3 +304,11 @@ func resolveTimeLocation(timeString string) *time.Location {
 	}
 	return fallbackLocation
 }
+
+func getDateOnlyDiffDays(t time.Time) int {
+	tNow := time.Now()
+	tNow = time.Date(tNow.Year(), tNow.Month(), tNow.Day(), 0, 0, 0, 0, tNow.Location())
+	tLocal := t.In(time.Local)
+	tLocal = time.Date(tLocal.Year(), tLocal.Month(), tLocal.Day(), 0, 0, 0, 0, tLocal.Location())
+	return int(tLocal.Sub(tNow).Hours() / 24)
+}
