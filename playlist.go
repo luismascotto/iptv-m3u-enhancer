@@ -17,7 +17,11 @@ type Playlist struct {
 	HeaderPresent bool
 }
 
-func (p *Playlist) sortEntries() {
+type PlaylistOutput struct {
+	Entries []*PlaylistEntry
+}
+
+func (p *PlaylistOutput) sortEntries() {
 	sort.Slice(p.Entries, func(i, j int) bool {
 		a := p.Entries[i]
 		b := p.Entries[j]
@@ -180,4 +184,22 @@ func (p *Playlist) processNBAEntries(fallbackYear int) {
 			}
 		}
 	}
+}
+
+func (p *Playlist) generateOutput(splitByGroupTitle bool) map[string]PlaylistOutput {
+
+	groupTitleMap := make(map[string]PlaylistOutput)
+	for _, e := range p.Entries {
+		groupTitle := e.Info.GroupTitle()
+		if !splitByGroupTitle {
+			groupTitle = "default"
+		}
+		po, ok := groupTitleMap[groupTitle]
+		if !ok {
+			po = PlaylistOutput{}
+		}
+		po.Entries = append(po.Entries, &e)
+		groupTitleMap[groupTitle] = po
+	}
+	return groupTitleMap
 }

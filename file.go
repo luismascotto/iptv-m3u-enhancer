@@ -24,7 +24,7 @@ func sanitizeForFilename(s string) string {
 	return b.String()
 }
 
-func writeFilteredM3U(outPath string, entries []PlaylistEntry) error {
+func writeFilteredM3U(outPath string, entries []*PlaylistEntry) error {
 	var err error
 	var f *os.File
 	if err = os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
@@ -41,7 +41,7 @@ func writeFilteredM3U(outPath string, entries []PlaylistEntry) error {
 		return err
 	}
 	for _, e := range entries {
-		line := writeNewEntry(e)
+		line := writeNewEntry(*e)
 		if line == "" {
 			continue
 			// line = e.Info.Raw

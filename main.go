@@ -34,7 +34,7 @@ func (e ExtInf) SetAttr(key, value string) {
 	if e.Attributes == nil {
 		e.Attributes = make(map[string]string)
 	}
-	e.SetAttr(key, value)
+	e.Attributes[key] = value
 }
 
 func (e ExtInf) GroupTitle() string {
@@ -280,6 +280,8 @@ func main() {
 		flagStartTime  bool
 		flagRecent     bool
 		flagNBA        bool
+		flagGroupSplit bool
+		flagSort       bool
 	)
 	flag.StringVar(&flagGroupTitle, "group-title", "", "Filter entries by group-title (case-insensitive).")
 	flag.StringVar(&flagOut, "out", "", "Output .m3u path. Defaults to '<input>.<group>.m3u' in the same directory.")
@@ -287,6 +289,8 @@ func main() {
 	flag.BoolVar(&flagStartTime, "start-time", false, "Filter entries with parsed start time.")
 	flag.BoolVar(&flagRecent, "recent", false, "Filter entries with start time prior to 6 hours ago or after 24 hours from now")
 	flag.BoolVar(&flagNBA, "nba", false, "Parse teams from title to improve sorting by match")
+	flag.BoolVar(&flagGroupSplit, "group-split", false, "Split entries into multiple playlists based on the group-title attribute.")
+	flag.BoolVar(&flagSort, "sort", true, "Sort entries by start time (when present) then by nba-match-id (when present), then by title")
 	flag.Parse()
 
 	args := flag.Args()
@@ -332,23 +336,37 @@ func main() {
 		})
 	}
 
-	// Sort: by parsed local start time (when present) then by title
-	playlist.sortEntries()
-
 	// Derive default output path if needed
-	outPath := flagOut
-	if outPath == "" {
-		dir := filepath.Dir(inPath)
-		base := filepath.Base(inPath)
-		ext := filepath.Ext(base)
-		name := strings.TrimSuffix(base, ext)
-		suffix := sanitizeForFilename(flagGroupTitle)
-		outPath = filepath.Join(dir, fmt.Sprintf("%s.%s%s", name, suffix, ext))
+	outDirPath := filepath.Dir(inPath)
+	if flagOut != "" {
+		outDirPath = flagOut
+	}
+	outBaseName := filepath.Base(inPath)
+	outExt := filepath.Ext(outBaseName)
+	outName := strings.TrimSuffix(outBaseName, outExt)
+	if flagGroupSplit {
+		outDirPath = filepath.Join(outDirPath, outName)
+		if err := os.MkdirAll(outDirPath, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "create directory error:", err)
+			os.Exit(1)
+		}
 	}
 
-	if err := writeFilteredM3U(outPath, playlist.Entries); err != nil {
-		fmt.Fprintln(os.Stderr, "write error:", err)
-		os.Exit(1)
+	outputPlaylists := playlist.generateOutput(flagGroupSplit)
+	for groupTitle, outputPlaylist := range outputPlaylists {
+		if flagSort {
+			outputPlaylist.sortEntries()
+		}
+		suffix := flagGroupTitle
+		if suffix == "" {
+			suffix = groupTitle
+		}
+		outFilePath := filepath.Join(outDirPath, fmt.Sprintf("%s.%s%s", outName, sanitizeForFilename(suffix), outExt))
+
+		if err := writeFilteredM3U(outFilePath, outputPlaylist.Entries); err != nil {
+			fmt.Fprintln(os.Stderr, "write error:", err)
+			os.Exit(1)
+		}
 	}
 }
 
