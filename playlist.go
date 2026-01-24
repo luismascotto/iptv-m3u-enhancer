@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type PlaylistEntry struct {
+	Info ExtInf
+	URI  string
+}
+
+type Playlist struct {
+	Entries       []PlaylistEntry
+	HeaderPresent bool
+}
+
 func (p *Playlist) sortEntries() {
 	sort.Slice(p.Entries, func(i, j int) bool {
 		a := p.Entries[i]

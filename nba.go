@@ -131,3 +131,14 @@ func NewNBAFranchisesMap() map[string]NBAFranchise {
 	}
 	return nbaFranchisesMap
 }
+
+func (e ExtInf) NBAMatchId() string {
+	return e.GetAttr("nba-match-id")
+}
+
+func (e ExtInf) SetNBAMatchId() {
+	nbaMatchId := generateMatchIdFromTitle(e.Title)
+	if nbaMatchId != "" {
+		e.SetAttr("nba-match-id", nbaMatchId)
+	}
+}

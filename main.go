@@ -23,38 +23,22 @@ type ExtInf struct {
 	TitleCopy      string
 }
 
+func (e ExtInf) GetAttr(key string) string {
+	if e.Attributes == nil {
+		return ""
+	}
+	return e.Attributes[key]
+}
+
+func (e ExtInf) SetAttr(key, value string) {
+	if e.Attributes == nil {
+		e.Attributes = make(map[string]string)
+	}
+	e.SetAttr(key, value)
+}
+
 func (e ExtInf) GroupTitle() string {
-	if e.Attributes == nil {
-		return ""
-	}
-	return e.Attributes["group-title"]
-}
-
-func (e ExtInf) NBAMatchId() string {
-	if e.Attributes == nil {
-		return ""
-	}
-	return e.Attributes["nba-match-id"]
-}
-
-func (e ExtInf) SetNBAMatchId() {
-	nbaMatchId := generateMatchIdFromTitle(e.Title)
-	if nbaMatchId != "" {
-		if e.Attributes == nil {
-			e.Attributes = make(map[string]string)
-		}
-		e.Attributes["nba-match-id"] = nbaMatchId
-	}
-}
-
-type PlaylistEntry struct {
-	Info ExtInf
-	URI  string
-}
-
-type Playlist struct {
-	Entries       []PlaylistEntry
-	HeaderPresent bool
+	return e.GetAttr("group-title")
 }
 
 func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
