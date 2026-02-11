@@ -320,7 +320,7 @@ func main() {
 		hoursFuture := 48
 
 		if flagNBA {
-			hoursAgo = 4
+			hoursAgo = 8
 			hoursFuture = 24
 		}
 		playlist.filterScheduledEntries(flagStartTime, flagRecent, time.Duration(hoursAgo)*time.Hour, time.Duration(hoursFuture)*time.Hour)
