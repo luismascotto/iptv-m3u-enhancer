@@ -13,7 +13,7 @@ type PlaylistEntry struct {
 }
 
 type Playlist struct {
-	Entries       []PlaylistEntry
+	Entries       []*PlaylistEntry
 	HeaderPresent bool
 }
 
@@ -188,17 +188,22 @@ func (p *Playlist) processNBAEntries(fallbackYear int) {
 
 func (p *Playlist) generateOutput(splitByGroupTitle bool) map[string]PlaylistOutput {
 
+	if !splitByGroupTitle {
+		return map[string]PlaylistOutput{
+			"ALL": {
+				Entries: p.Entries,
+			},
+		}
+	}
 	groupTitleMap := make(map[string]PlaylistOutput)
 	for _, e := range p.Entries {
-		groupTitle := e.Info.GroupTitle()
-		if !splitByGroupTitle {
-			groupTitle = "default"
-		}
+		groupTitle := strings.ToUpper(e.Info.GroupTitle())
+
 		po, ok := groupTitleMap[groupTitle]
 		if !ok {
 			po = PlaylistOutput{}
 		}
-		po.Entries = append(po.Entries, &e)
+		po.Entries = append(po.Entries, e)
 		groupTitleMap[groupTitle] = po
 	}
 	return groupTitleMap

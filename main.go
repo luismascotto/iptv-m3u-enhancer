@@ -58,7 +58,7 @@ func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
 		firstNonEmptySet bool
 		headerSeen       bool
 		currentEXTINF    *ExtInf
-		entries          []PlaylistEntry
+		entries          []*PlaylistEntry
 	)
 
 	for scanner.Scan() {
@@ -120,7 +120,7 @@ func parseM3U(path string, strict bool, groupTitle string) (Playlist, error) {
 			// 	}
 			// }
 
-			entries = append(entries, PlaylistEntry{
+			entries = append(entries, &PlaylistEntry{
 				Info: *currentEXTINF,
 				URI:  line,
 			})
