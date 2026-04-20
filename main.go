@@ -361,7 +361,7 @@ func main() {
 		if suffix == "" {
 			suffix = groupTitle
 		}
-		outFilePath := filepath.Join(outDirPath, fmt.Sprintf("%s.%s%s", outName, sanitizeForFilename(suffix), outExt))
+		outFilePath := filepath.Join(outDirPath, fmt.Sprintf("%s %s%s", outName, sanitizeForFilename(suffix), outExt))
 
 		if err := writeFilteredM3U(outFilePath, outputPlaylist.Entries); err != nil {
 			fmt.Fprintln(os.Stderr, "write error:", err)
