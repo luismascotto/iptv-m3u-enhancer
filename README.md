@@ -25,6 +25,3 @@ iptv-m3u-enhancer [--group-title "<name>"] [--out <path>] [--strict] [--nba] <in
 - The parser preserves the original `#EXTINF` line for each entry (attributes, order, spacing) when writing the filtered file.
 - Non-`#EXTINF` tags and additional metadata are ignored for now.
 - Future: local start time will be derived from entry titles if present.
-
-# iptv-m3u-enhancer
-Filter a group and sort by event start time your  daily generated IPTV m3u file

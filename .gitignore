@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# Build artifacts
+iptv-m3u-enhancer
+
 # Editor/IDE
 .idea/
 .vscode/
